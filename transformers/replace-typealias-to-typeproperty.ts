@@ -40,7 +40,7 @@ export default function transformer(fileInfo: FileInfo, api: API) {
 
   let isDirty = false;
 
-  // Remove `HasClassName` import
+  // Remove `removeTypeAliasName` import
   root.find(j.ImportDeclaration).forEach((path: any) => {
     const specifiers = path.node.specifiers.filter(
       (specifier: any) =>
@@ -66,7 +66,7 @@ export default function transformer(fileInfo: FileInfo, api: API) {
     return fileInfo.source;
   }
 
-  // Remove `HasClassName` from type definitions
+  // Remove `removeTypeAliasName` from type definitions
   root.find(j.TSIntersectionType).forEach((path: any) => {
     const types = path.node.types;
     const filteredTypes = types.filter(
