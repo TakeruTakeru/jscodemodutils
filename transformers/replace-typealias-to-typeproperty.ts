@@ -1,5 +1,20 @@
 import type { API, FileInfo } from "jscodeshift";
 
+// usage
+// import { HasClassName } from "@/types";
+// type Props = {
+//  hoge: string
+// } & HasClassName;
+// ↓
+// type Props = {
+//  hoge: string
+//  className?: string
+// }
+
+// ref:https://astexplorer.net/
+// parser:@babel/parser
+// transformer: recast
+
 // only available with directImport
 // e.g.
 // 👍 import { HasClassName } from "@/types";
@@ -8,14 +23,20 @@ export default function transformer(fileInfo: FileInfo, api: API) {
   const j = api.jscodeshift;
   const root = j(fileInfo.source);
 
-  // config section
-  // typeAliasName: The type name to be replaced.
-  // replaceProperty: The property to be added instead.
-  const typeAliasName = "HasClassName";
-  const replaceProperty = j.tsPropertySignature(
-    j.identifier("className"),
+  // [Config Section]
+  // replaceWithTypeAliasSelector: The selector to find the type alias to be replaced.
+  // removeTypeAliasName: The type name to be replaced.
+  // propertyKey: The property key to be added.
+  // addProperty: The property to be added instead.
+  // isOptional: Whether the property is optional or not.
+  const replaceWithTypeAliasSelector = { id: { name: "Props" } };
+  const removeTypeAliasName = "HasClassName";
+  const propertyKey = "className";
+  const addProperty = j.tsPropertySignature(
+    j.identifier(propertyKey),
     j.tsTypeAnnotation(j.tsStringKeyword())
   );
+  const isOptional = true;
 
   let isDirty = false;
 
@@ -25,7 +46,7 @@ export default function transformer(fileInfo: FileInfo, api: API) {
       (specifier: any) =>
         !(
           specifier.type === "ImportSpecifier" &&
-          specifier.imported.name === typeAliasName
+          specifier.imported.name === removeTypeAliasName
         )
     );
 
@@ -52,7 +73,7 @@ export default function transformer(fileInfo: FileInfo, api: API) {
       (type: any) =>
         !(
           type.type === "TSTypeReference" &&
-          type.typeName.name === typeAliasName
+          type.typeName.name === removeTypeAliasName
         )
     );
 
@@ -67,24 +88,26 @@ export default function transformer(fileInfo: FileInfo, api: API) {
     }
   });
 
-  // Add `className?: string` to the Props type
+  // Add `addProperty` to the Props type
   root
-    .find(j.TSTypeAliasDeclaration, { id: { name: "Props" } })
+    .find(j.TSTypeAliasDeclaration, replaceWithTypeAliasSelector)
     .forEach((path: any) => {
       const typeLiteral = path.node.typeAnnotation;
 
       if (typeLiteral.type === "TSTypeLiteral") {
-        const hasClassNameProp = typeLiteral.members.some(
+        const isDuplicated = typeLiteral.members.some(
           (member: any) =>
             member.type === "TSPropertySignature" &&
             member.key.type === "Identifier" &&
-            member.key.name === "className"
+            member.key.name === propertyKey
         );
 
-        if (!hasClassNameProp) {
-          typeLiteral.members.push(replaceProperty);
-          // Mark `className` as optional
-          typeLiteral.members[typeLiteral.members.length - 1].optional = true;
+        if (!isDuplicated) {
+          typeLiteral.members.push(addProperty);
+          // Mark as optional
+          if (isOptional) {
+            typeLiteral.members[typeLiteral.members.length - 1].optional = true;
+          }
         }
       }
     });
